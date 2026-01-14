@@ -55,75 +55,83 @@ function getvaluenumber(x) {
         };
     };
 }
-//---------------根据最大值、最小值、拟形成色带数量，生成序列-----------------
-function autobreak(Tvaluemin, Tvaluemax, TargetN) {
-    // if (Tvaluemin > Tvaluemax) { alert("wrong position") };
-    var DX;
-    var a = [];
-    var j = -8;
-    var i = 0;
-    while (j < 9) {
-        a[4 * i + 0] = 1 * Math.pow(10, j);
-        a[4 * i + 1] = 2 * Math.pow(10, j);
-        a[4 * i + 2] = 3 * Math.pow(10, j);
-        a[4 * i + 3] = 5 * Math.pow(10, j);
-        // a[3 * i + 0] = 1 * Math.pow(10, j);
-        // a[3 * i + 1] = 2 * Math.pow(10, j);
-        // a[3 * i + 2] = 5 * Math.pow(10, j);
-        i = i + 1;
-        j = j + 1;
-    }
+//---------------根据最大值、最小值、拟形成数量，生成序列-----------------
+/**
+ * 根据最大值、最小值、拟形成数量，生成美观的等差序列
+ * 
+ * @param {number} minVal - 数据最小值
+ * @param {number} maxVal - 数据最大值
+ * @param {number} targetN - 期望的分段数量
+ * @returns {Object} 包含序列信息的对象
+ */
+function autobreak(minVal, maxVal, targetN) {
+    // 1. 输入预处理与安全检查
+    let tMin = parseFloat(minVal);
+    let tMax = parseFloat(maxVal);
+    if (isNaN(tMin) || isNaN(tMax)) return null;
+    
+    // 确保顺序正确且范围有效
+    if (tMin > tMax) [tMin, tMax] = [tMax, tMin];
+    if (tMin === tMax) tMax = tMin + 1;
 
-    var TDelta = Tvaluemax - Tvaluemin;
-    var Length = TDelta / TargetN;
+    const delta = tMax - tMin;
+    const rawStep = delta / targetN;
 
-    for (var kk = 0; kk < a.length; kk++) {
-        var c = a[kk];
-        if (Length <= a[kk]) {
-            if (Math.abs(TDelta / a[kk] - TargetN) < Math.abs(TDelta / a[kk - 1] - TargetN)) {
-                DX = a[kk];
-            }
-            else {
-                DX = a[kk - 1];
-            }
-            break
+    // 2. 智能确定美观步长 (Step Selection)
+    // 获取量级 (例如 0.03 -> 10^-2)
+    const magnitude = Math.floor(Math.log10(rawStep));
+    const powerOf10 = Math.pow(10, magnitude);
+    
+    // 定义“美观”步长的候选系数 (1, 2, 3, 5, 10)
+    const niceFactors = [1, 2, 3, 5, 10];
+    let DX = niceFactors[0] * powerOf10;
+    let minDiff = Infinity;
+
+    // 寻找最接近目标分段数的步长系数
+    for (const factor of niceFactors) {
+        const currentDX = factor * powerOf10;
+        const currentN = delta / currentDX;
+        const diff = Math.abs(currentN - targetN);
+        if (diff < minDiff) {
+            minDiff = diff;
+            DX = currentDX;
         }
     }
 
-    var tttmax = Math.floor(Tvaluemax / DX);
-    var tttmin = Math.floor(Tvaluemin / DX);
+    // 3. 确定显示精度 (Precision Management)
+    const getPrecision = (x) => {
+        for (let i = 0; i < 12; i++) {
+            if (Math.abs(Number(x.toFixed(i)) - x) <= (Math.abs(x) * 0.0001)) return i;
+        }
+        return 12;
+    };
+    const precision = getPrecision(DX);
 
-    nnn=getvaluenumber(DX);
+    // 4. 计算对齐后的边界
+    // levelMin: 小于等于 tMin 的最大 DX 倍数
+    const levelMin = Number((Math.floor(tMin / DX) * DX).toFixed(precision));
+    // levelMax: 大于等于 tMax 的最小 DX 倍数
+    const levelMax = Number((Math.ceil(tMax / DX) * DX).toFixed(precision));
 
-    console.log("DX=", DX);
-    console.log("nnn=", nnn);
+    const levelnum = Math.round((levelMax - levelMin) / DX);
+    const percentage = ((delta / (levelMax - levelMin)) * 100).toFixed(1) + "%";
 
-    var levelMax = tttmax * DX + DX;
-    levelMax = Number(levelMax.toFixed(nnn));
-
-    var levelMin = tttmin * DX;
-    levelMin = Number(levelMin.toFixed(nnn));
-
-    var levelnum = (levelMax - levelMin) / DX;
-    levelnum = Math.round(levelnum);
-
-    var percentage = (100 * (Tvaluemax - Tvaluemin) / (levelMax - levelMin)).toFixed(1);
-
-    var breaks = [];
-    for (var jj = 0; jj < levelnum + 1; jj++) {
-        breaks.push(Number(levelMin + jj * DX).toFixed(nnn));
+    // 5. 生成最终序列
+    const breaks = [];
+    for (let i = 0; i <= levelnum; i++) {
+        const val = levelMin + i * DX;
+        // 使用 precision 消除 0.30000000000000004 这种浮点误差
+        breaks.push(val.toFixed(precision));
     }
 
     return {
-        // "Tvaluemin":Tvaluemin,
-        // "Tvaluemax":Tvaluemax,
-        "levelMin": levelMin,
-        "levelMax": levelMax,
-        "step": DX,
-        "levelnum": levelnum,
-        "percentage": percentage + "%",
-        "breaks": breaks,
-    }
+        levelMin,
+        levelMax,
+        step: DX,
+        levelnum,
+        percentage,
+        breaks
+    };
 }
 const colordatabase = new Object();//配色方案，全局变量,可自定义添加新方案
 colordatabase.bluegreenred = [
